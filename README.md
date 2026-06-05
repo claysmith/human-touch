@@ -1,3 +1,6 @@
+# Binary
+The binary is in the repo above at human-touch-1.0.0.ablx
+
 # human-touch
 
 Adds random timing, velocity, and duration variation (jitter) to MIDI notes in
