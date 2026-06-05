@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Human Touch Jitter</title>
+  <style>
+    :root {
+      --p-live-ui-bg: hsl(0,0%,21%);
+      --p-live-control-bg: hsl(0,0%,16%);
+      --p-live-input-bg: hsl(0,0%,12%);
+      --p-live-text-primary: hsl(0,0%,71%);
+      --p-live-text-secondary: hsl(0,0%,41%);
+      --p-live-control-border: hsl(0,0%,7%);
+      --p-live-accent-primary: hsl(31,100%,67%);
+      --p-live-control-text--enabled: hsl(0,0%,7%);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--p-live-ui-bg);
+      color: var(--p-live-text-primary);
+      padding: 16px;
+      font-size: 12px;
+      user-select: none;
+    }
+    h1 { font-size: 14px; font-weight: 600; margin-bottom: 4px; color: var(--p-live-accent-primary); }
+    .desc { color: var(--p-live-text-secondary); font-size: 10px; margin-bottom: 16px; }
+    .control-group { margin-bottom: 14px; }
+    .label-row {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 4px;
+    }
+    .label-row label { color: var(--p-live-text-primary); }
+    .label-row .value {
+      color: var(--p-live-accent-primary);
+      font-variant-numeric: tabular-nums;
+      min-width: 24px;
+      text-align: right;
+    }
+    .hint { color: var(--p-live-text-secondary); font-size: 10px; margin-top: 2px; }
+    input[type="range"] {
+      -webkit-appearance: none; appearance: none;
+      width: 100%; height: 4px;
+      background: var(--p-live-control-bg);
+      border-radius: 2px;
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: var(--p-live-accent-primary);
+      cursor: pointer;
+    }
+    .btn-row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+    button {
+      padding: 6px 16px;
+      border: 1px solid var(--p-live-control-border);
+      border-radius: 3px;
+      font-size: 12px;
+      cursor: pointer;
+      background: var(--p-live-control-bg);
+      color: var(--p-live-text-primary);
+    }
+    button.primary { background: var(--p-live-accent-primary); color: var(--p-live-control-text--enabled); border-color: transparent; }
+    button:hover { filter: brightness(1.15); }
+  </style>
+</head>
+<body>
+  <h1>Human Touch Jitter</h1>
+  <p class="desc">Add random variation to make MIDI notes feel more human</p>
+
+  <div class="control-group">
+    <div class="label-row">
+      <label for="timing">Timing (± ticks)</label>
+      <span class="value" id="timing-value">5</span>
+    </div>
+    <input type="range" id="timing" min="0" max="50" value="5" step="1">
+    <div class="hint">Random offset to note start positions</div>
+  </div>
+
+  <div class="control-group">
+    <div class="label-row">
+      <label for="velocity">Velocity (±)</label>
+      <span class="value" id="velocity-value">8</span>
+    </div>
+    <input type="range" id="velocity" min="0" max="50" value="8" step="1">
+    <div class="hint">Random variation in note velocity</div>
+  </div>
+
+  <div class="control-group">
+    <div class="label-row">
+      <label for="duration">Duration (± ticks)</label>
+      <span class="value" id="duration-value">3</span>
+    </div>
+    <input type="range" id="duration" min="0" max="50" value="3" step="1">
+    <div class="hint">Random offset to note lengths</div>
+  </div>
+
+  <div class="btn-row">
+    <button onclick="send(JSON.stringify({cancelled:true}))">Cancel</button>
+    <button class="primary" onclick="apply()">Apply</button>
+  </div>
+
+  <script>
+    const ids = ["timing", "velocity", "duration"];
+    ids.forEach(id => {
+      const el = document.getElementById(id);
+      const display = document.getElementById(id + "-value");
+      el.addEventListener("input", () => { display.textContent = el.value; });
+    });
+
+    function send(message) {
+      const msg = { method: "close_and_send", params: [message] };
+      if (window.webkit?.messageHandlers?.live)
+        window.webkit.messageHandlers.live.postMessage(msg);
+      else if (window.chrome?.webview)
+        window.chrome.webview.postMessage(msg);
+    }
+
+    function apply() {
+      send(JSON.stringify({
+        timingJitter: parseInt(document.getElementById("timing").value),
+        velocityJitter: parseInt(document.getElementById("velocity").value),
+        durationJitter: parseInt(document.getElementById("duration").value),
+      }));
+    }
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") apply();
+      if (e.key === "Escape") send(JSON.stringify({cancelled:true}));
+    });
+  </script>
+</body>
+</html>
