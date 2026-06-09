@@ -52,6 +52,43 @@
       background: var(--p-live-accent-primary);
       cursor: pointer;
     }
+    .clip-list {
+      max-height: 180px;
+      overflow-y: auto;
+      background: var(--p-live-input-bg);
+      border: 1px solid var(--p-live-control-border);
+      border-radius: 3px;
+      padding: 2px 0;
+    }
+    .clip-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 8px;
+      cursor: pointer;
+      font-size: 11px;
+    }
+    .clip-item:hover { background: rgba(255,255,255,0.04); }
+    .clip-item.all-item {
+      border-bottom: 1px solid var(--p-live-control-border);
+      margin-bottom: 2px;
+      position: sticky;
+      top: 0;
+      background: var(--p-live-input-bg);
+      z-index: 1;
+    }
+    .clip-label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+    }
+    .clip-badge {
+      color: var(--p-live-text-secondary);
+      font-size: 10px;
+      margin-left: auto;
+    }
+    input[type="checkbox"] { accent-color: var(--p-live-accent-primary); flex-shrink: 0; }
     .btn-row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
     button {
       padding: 6px 16px;
@@ -97,6 +134,21 @@
     <div class="hint">Random offset to note lengths</div>
   </div>
 
+  <div class="control-group">
+    <div class="label-row">
+      <label>Target clips</label>
+      <span class="value" id="clip-count"></span>
+    </div>
+    <div class="clip-list" id="clipList">
+      <label class="clip-item all-item">
+        <input type="checkbox" id="allClips">
+        <span class="clip-label" style="font-weight:600;">All MIDI clips</span>
+        <span class="clip-badge" id="all-badge"></span>
+      </label>
+      __CLIP_LIST__
+    </div>
+  </div>
+
   <div class="btn-row">
     <button onclick="send(JSON.stringify({cancelled:true}))">Cancel</button>
     <button class="primary" onclick="apply()">Apply</button>
@@ -110,6 +162,30 @@
       el.addEventListener("input", () => { display.textContent = el.value; });
     });
 
+    const allCheck = document.getElementById("allClips");
+    const clipChecks = document.querySelectorAll(".clip-check");
+    const countEl = document.getElementById("clip-count");
+
+    function updateCount() {
+      const checked = document.querySelectorAll(".clip-check:checked").length;
+      const total = clipChecks.length;
+      countEl.textContent = allCheck.checked ? total + "/" + total : checked + "/" + total;
+    }
+
+    allCheck.addEventListener("change", () => {
+      clipChecks.forEach(cb => cb.checked = allCheck.checked);
+      updateCount();
+    });
+
+    clipChecks.forEach(cb => {
+      cb.addEventListener("change", () => {
+        if (!cb.checked) allCheck.checked = false;
+        updateCount();
+      });
+    });
+
+    updateCount();
+
     function send(message) {
       const msg = { method: "close_and_send", params: [message] };
       if (window.webkit?.messageHandlers?.live)
@@ -119,10 +195,18 @@
     }
 
     function apply() {
+      let selectedIndices;
+      if (allCheck.checked) {
+        selectedIndices = "all";
+      } else {
+        selectedIndices = Array.from(document.querySelectorAll(".clip-check:checked"))
+          .map(cb => parseInt(cb.closest(".clip-item").dataset.index));
+      }
       send(JSON.stringify({
         timingJitter: parseInt(document.getElementById("timing").value),
         velocityJitter: parseInt(document.getElementById("velocity").value),
         durationJitter: parseInt(document.getElementById("duration").value),
+        selectedIndices,
       }));
     }
 
