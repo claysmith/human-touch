@@ -145,7 +145,6 @@ export function activate(activation: ActivationContext) {
   (
     [
       "MidiClip",
-      "ClipSlot",
       "ClipSlotSelection",
       "MidiTrack.ArrangementSelection",
     ] as const
