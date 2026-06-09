@@ -85,8 +85,14 @@
     }
     .clip-badge {
       color: var(--p-live-text-secondary);
-      font-size: 10px;
+      font-size: 9px;
+      font-weight: 600;
       margin-left: auto;
+      background: var(--p-live-control-bg);
+      padding: 1px 5px;
+      border-radius: 3px;
+      border: 1px solid var(--p-live-control-border);
+      flex-shrink: 0;
     }
     input[type="checkbox"] { accent-color: var(--p-live-accent-primary); flex-shrink: 0; }
     .btn-row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
@@ -143,7 +149,6 @@
       <label class="clip-item all-item">
         <input type="checkbox" id="allClips">
         <span class="clip-label" style="font-weight:600;">All MIDI clips</span>
-        <span class="clip-badge" id="all-badge"></span>
       </label>
       __CLIP_LIST__
     </div>

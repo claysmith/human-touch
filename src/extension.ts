@@ -6,98 +6,59 @@ import {
   DataModelObject,
   type ActivationContext,
   type Handle,
-  type ArrangementSelection,
 } from "@ableton-extensions/sdk";
 import dialogHtml from "../ui/interface.html";
 
 function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-function applyJitter(
-  clip: MidiClip<"1.0.0">,
-  timingBeats: number,
-  durationBeats: number,
-  velAmount: number,
-): void {
+function applyJitter(clip: MidiClip<"1.0.0">, timingBeats: number, durationBeats: number, velAmount: number): void {
   clip.notes = clip.notes.map((note) => ({
     ...note,
     startTime: Math.max(0, note.startTime + (Math.random() - 0.5) * 2 * timingBeats),
-    velocity: Math.max(
-      1,
-      Math.min(127, Math.round((note.velocity ?? 100) + (Math.random() - 0.5) * 2 * velAmount)),
-    ),
+    velocity: Math.max(1, Math.min(127, Math.round((note.velocity ?? 100) + (Math.random() - 0.5) * 2 * velAmount))),
     duration: Math.max(0.001, note.duration + (Math.random() - 0.5) * 2 * durationBeats),
   }));
 }
 
-function resolvePreselectedClips(
-  arg: unknown,
-  context: ReturnType<typeof initialize>,
-): MidiClip<"1.0.0">[] {
-  const clips: MidiClip<"1.0.0">[] = [];
-
-  if (arg && typeof arg === "object" && "selected_clip_slots" in arg) {
-    const sel = arg as { selected_clip_slots: Handle[] };
-    for (const h of sel.selected_clip_slots) {
-      const slot = context.getObjectFromHandle(h, ClipSlot);
-      if (slot.clip instanceof MidiClip) {
-        clips.push(slot.clip as MidiClip<"1.0.0">);
-      }
-    }
-  } else if (arg && typeof arg === "object" && "time_selection_start" in arg) {
-    const sel = arg as ArrangementSelection;
-    for (const h of sel.selected_lanes) {
-      const obj = context.getObjectFromHandle(h, DataModelObject);
-      if (!(obj instanceof MidiTrack)) continue;
-      for (const c of obj.arrangementClips) {
-        if (
-          c instanceof MidiClip &&
-          c.startTime < sel.time_selection_end &&
-          c.endTime > sel.time_selection_start
-        ) {
-          clips.push(c as MidiClip<"1.0.0">);
-        }
-      }
-    }
-  } else {
-    const obj = context.getObjectFromHandle(arg as Handle, DataModelObject<"1.0.0">);
-    if (obj instanceof MidiClip) {
-      clips.push(obj as MidiClip<"1.0.0">);
-    } else if (obj instanceof ClipSlot && obj.clip instanceof MidiClip) {
-      clips.push(obj.clip as MidiClip<"1.0.0">);
-    }
-  }
-
-  return clips;
+function resolvePreselectedClip(arg: unknown, context: ReturnType<typeof initialize>): MidiClip<"1.0.0"> | null {
+  const obj = context.getObjectFromHandle(arg as Handle, DataModelObject<"1.0.0">);
+  if (obj instanceof MidiClip) return obj as MidiClip<"1.0.0">;
+  if (obj instanceof ClipSlot && obj.clip instanceof MidiClip) return obj.clip as MidiClip<"1.0.0">;
+  return null;
 }
 
 export function activate(activation: ActivationContext) {
   const context = initialize(activation, "1.0.0");
 
   context.commands.registerCommand("human-touch.jitter", async (arg: unknown) => {
-    const preselected = resolvePreselectedClips(arg, context);
-    const preselectedSet = new Set(preselected);
+    const preselectedClip = resolvePreselectedClip(arg, context);
+    const preselectedClips = preselectedClip ? [preselectedClip] : [];
+    const preselectedSet = new Set(preselectedClips);
 
+    const seen = new Set<bigint>();
     const allClipItems: Array<{
       clip: MidiClip<"1.0.0">;
       trackName: string;
+      label: string;
+      origin: "session" | "arrangement";
     }> = [];
 
     for (const track of context.application.song.tracks) {
       if (!(track instanceof MidiTrack)) continue;
-      for (const slot of track.clipSlots) {
-        if (slot.clip instanceof MidiClip) {
-          allClipItems.push({ clip: slot.clip as MidiClip<"1.0.0">, trackName: track.name });
+      track.clipSlots.forEach((slot, si) => {
+        if (slot.clip instanceof MidiClip && !seen.has(slot.clip.handle.id)) {
+          seen.add(slot.clip.handle.id);
+          const name = slot.clip.name || `Scene ${si + 1}`;
+          allClipItems.push({ clip: slot.clip as MidiClip<"1.0.0">, trackName: track.name, label: name, origin: "session" });
         }
-      }
+      });
       for (const c of track.arrangementClips) {
-        if (c instanceof MidiClip) {
-          allClipItems.push({ clip: c as MidiClip<"1.0.0">, trackName: track.name });
+        if (c instanceof MidiClip && !seen.has(c.handle.id)) {
+          seen.add(c.handle.id);
+          const name = c.name || `Bar ${Math.floor(c.startTime / 4) + 1}`;
+          allClipItems.push({ clip: c as MidiClip<"1.0.0">, trackName: track.name, label: name, origin: "arrangement" });
         }
       }
     }
@@ -107,8 +68,8 @@ export function activate(activation: ActivationContext) {
     const clipRows = allClipItems
       .map((item, i) => {
         const checked = preselectedSet.has(item.clip) ? "checked" : "";
-        const label = `${escapeHtml(item.trackName)} / ${escapeHtml(item.clip.name || "Untitled")}`;
-        return `<label class="clip-item" data-index="${i}"><input type="checkbox" class="clip-check" ${checked}><span class="clip-label">${label}</span></label>`;
+        const originLabel = item.origin === "session" ? "S" : "A";
+        return `<label class="clip-item" data-index="${i}"><input type="checkbox" class="clip-check" ${checked}><span class="clip-label">${escapeHtml(item.trackName)} / ${escapeHtml(item.label)}</span><span class="clip-badge">${originLabel}</span></label>`;
       })
       .join("");
 
@@ -142,17 +103,7 @@ export function activate(activation: ActivationContext) {
     });
   });
 
-  (
-    [
-      "MidiClip",
-      "ClipSlot",
-      "MidiTrack.ArrangementSelection",
-    ] as const
-  ).forEach((scope) =>
-    context.ui.registerContextMenuAction(
-      scope,
-      "Human Touch Jitter\u2026",
-      "human-touch.jitter",
-    ),
+  (["MidiClip", "ClipSlot"] as const).forEach((scope) =>
+    context.ui.registerContextMenuAction(scope, "Human Touch Jitter\u2026", "human-touch.jitter"),
   );
 }
