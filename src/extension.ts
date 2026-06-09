@@ -145,7 +145,7 @@ export function activate(activation: ActivationContext) {
   (
     [
       "MidiClip",
-      "ClipSlotSelection",
+      "ClipSlot",
       "MidiTrack.ArrangementSelection",
     ] as const
   ).forEach((scope) =>
